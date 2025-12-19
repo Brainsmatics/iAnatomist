@@ -8,7 +8,7 @@ from skimage import transform
 import numpy as np
 
 
-class JHUBrainInferDataset(Dataset):
+class fMOSTBrainInferDataset(Dataset):
     def __init__(self, data_path, transforms):
         self.paths = data_path
         self.transforms = transforms
@@ -22,19 +22,19 @@ class JHUBrainInferDataset(Dataset):
     def __getitem__(self, index):
         # path = self.paths[index]
         x_path = glob.glob(self.paths+"/image/*")[index]
-        # y_path = self.paths.replace('moving', 'fixed').replace('test', 'fixed') + '/image/atlas.tif'
-        y_path = 'G:/Registration/TransMorph/TransMorph/dataset/fixed/image/atlas.tif'
+        y_path = self.paths.replace('moving', 'fixed').replace('test', 'fixed') + '/image/atlas.tif'
+        # y_path = 'G:/Registration/TransMorph/TransMorph/dataset/fixed/image/atlas.tif'
         x_seg_path = x_path
-        # y_seg_path = self.paths.replace('moving', 'fixed').replace('test', 'fixed') + '/seg/atlas.tif'
-        y_seg_path = 'G:/Registration/TransMorph/TransMorph/dataset/fixed/seg/atlas.tif'
+        y_seg_path = self.paths.replace('moving', 'fixed').replace('test', 'fixed') + '/seg/atlas.tif'
+        # y_seg_path = 'G:/Registration/TransMorph/TransMorph/dataset/fixed/seg/atlas.tif'
         x = sitk.GetArrayFromImage(sitk.ReadImage(x_path))
         y = sitk.GetArrayFromImage(sitk.ReadImage(y_path))
         x_seg = sitk.GetArrayFromImage(sitk.ReadImage(x_seg_path))
         y_seg = sitk.GetArrayFromImage(sitk.ReadImage(y_seg_path))
-        x = transform.resize(x, output_shape=(128, 128, 128),
-                               order=1, anti_aliasing=True, preserve_range=True)
-        y = transform.resize(y, output_shape=(128, 128, 128),
-                                order=0, anti_aliasing=False, preserve_range=True)
+        # x = transform.resize(x, output_shape=(128, 128, 128),
+        #                        order=1, anti_aliasing=True, preserve_range=True)
+        # y = transform.resize(y, output_shape=(128, 128, 128),
+        #                         order=0, anti_aliasing=False, preserve_range=True)
 
         x, y = x[None, ...], y[None, ...]
         x_seg, y_seg = x_seg[None, ...], y_seg[None, ...]
@@ -52,7 +52,7 @@ class JHUBrainInferDataset(Dataset):
         return len(glob.glob(self.paths + "/image/*"))
 
 
-class JHUBrainDataset(Dataset):
+class fMOSTBrainDataset(Dataset):
     def __init__(self, data_path, transforms):
         self.paths = data_path
         self.transforms = transforms
@@ -64,7 +64,6 @@ class JHUBrainDataset(Dataset):
         return out
 
     def __getitem__(self, index):
-        image_size = 128
         if len(glob.glob(self.paths + "/image/*.nii.gz")) > 13:
             x_path = glob.glob(self.paths + "/image/*.nii.gz")[index]
         else:
@@ -72,12 +71,6 @@ class JHUBrainDataset(Dataset):
 
         if "CH1" in x_path:
             x_label = torch.from_numpy(np.array([1]))
-        elif "LSFM" in x_path:
-            x_label = torch.from_numpy(np.array([2]))
-        elif "MRI" in x_path:
-            x_label = torch.from_numpy(np.array([3]))
-        elif "STP" in x_path:
-            x_label = torch.from_numpy(np.array([4]))
         else:
             x_label = torch.from_numpy(np.array([0]))
         y_label = torch.from_numpy(np.array([5]))

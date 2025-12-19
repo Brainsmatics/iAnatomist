@@ -12,8 +12,8 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import random
 from natsort import natsorted
-from models.TransMorph_diff import TransMorphDiff_MutiTask, Bilinear
-from models.TransMorph_diff import CONFIGS as CONFIGS_TM
+from models.iAnatomist import iAnatomist, Bilinear
+from models.iAnatomist_config import CONFIGS as CONFIGS_TM
 
 class Logger(object):
     def __init__(self, save_dir):
@@ -127,9 +127,7 @@ class DiceLoss(torch.nn.Module):
 
 def main():
     batch_size = 2
-    train_dir = 'D:/DATA/JHUBrain/Train/'
-    val_dir = 'D:/DATA/JHUBrain/Val/'
-    save_dir = 'new_TransMorphDiff+MRI/'
+    save_dir = 'iAnatomist/'
     if not os.path.exists('experiments/'+save_dir):
         os.makedirs('experiments/'+save_dir)
     if not os.path.exists('logs/' + save_dir):
@@ -155,8 +153,8 @@ def main():
     '''
     Initialize model
     '''
-    config = CONFIGS_TM['TransMorphDiff']
-    model = TransMorphDiff_MutiTask(config)
+    config = CONFIGS_TM['iAnatomist']
+    model = iAnatomist(config)
     model.cuda()
 
     '''
@@ -178,15 +176,11 @@ def main():
     train_composed = transforms.Compose([
                                          trans.NumpyType((np.float32, np.float32)),
                                          ])
-
-    # val_composed = transforms.Compose([trans.Seg_norm(), #rearrange segmentation label to 1 to 46
-    #                                    trans.NumpyType((np.float32, np.int16)),
-    #                                     ])
     val_composed = transforms.Compose([trans.NumpyType((np.float32, np.int16)),
                                        ])
 
-    train_set = datasets.JHUBrainDataset('./dataset/moving', transforms=train_composed)
-    val_set = datasets.JHUBrainDataset('./dataset/val', transforms=val_composed)
+    train_set = datasets.fMOSTBrainDataset('./dataset/moving', transforms=train_composed)
+    val_set = datasets.fMOSTBrainDataset('./dataset/val', transforms=val_composed)
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=3, pin_memory=True, drop_last=True)
     val_loader = DataLoader(val_set, batch_size=1, shuffle=False, num_workers=3, pin_memory=True, drop_last=True)
 
@@ -233,45 +227,39 @@ def main():
             y = data[1]
             x_seg = data[2]
             y_seg = data[3]
-            # disp = data[4]
-            # disp_trans = data[5]
-            # x_edge = data[6]
-            # y_edge = data[7]
-            # x_label = data[8]
-            # y_label = data[9]
-            # cord = torch.stack(torch.meshgrid(torch.linspace(-64, 64, 128) / 64, torch.linspace(-64, 64, 128) / 64,
-            #                                   torch.linspace(-64, 64, 128) / 64))[None,...].cuda()
+            disp = data[4]
+            disp_trans = data[5]
+            x_edge = data[6]
+            y_edge = data[7]
+            x_label = data[8]
+            y_label = data[9]
             output = model((x, y))
             loss_sim = MIND_criterion(output[0], y)
             loss_sim_iter += loss_sim
-            # loss_disp = MSE_criterion(output[1], disp.float())
-            # loss_disp_iter += loss_disp
-            # cal displacement difference
-            # disp_diff = disp.float() - output[1]
-            # sitk.WriteImage(sitk.GetImageFromArray(disp_diff.detach().cpu().numpy()[0, :, :, :, :].transpose(1,2,3,0)),
-            #                 path[0].replace('image', 'disp_diff'))
+            loss_disp = MSE_criterion(output[1], disp.float())
+            loss_disp_iter += loss_disp
             loss_disp_seg = CE_criterion(
                 reg_model_bilin(F.one_hot(x_seg.long(), 13).float().squeeze(dim=1).permute(0, 4, 1, 2, 3), output[1]),
                 torch.squeeze(y_seg.long(), dim=1))
-            # loss_cons = Dice_criterion(reg_model_bilin(output[3], output[1]),
-            #     torch.squeeze(y_seg.long(), dim=1))
-            # loss_cons_iter += loss_cons
+            loss_cons = Dice_criterion(reg_model_bilin(output[3], output[1]),
+                torch.squeeze(y_seg.long(), dim=1))
+            loss_cons_iter += loss_cons
             loss_disp_seg_iter += loss_disp_seg
-            # loss_seg = CE_criterion(output[3], torch.squeeze(x_seg.long(), dim=1))
-            # loss_seg_iter += loss_seg
-            # loss_edge = MSE_criterion(output[4]/60000.0, x_edge.float()/60000.0)
-            # loss_edge_iter += loss_edge
-            # loss_label = label_criterion(output[5], torch.squeeze(x_label.long()))
+            loss_seg = CE_criterion(output[3], torch.squeeze(x_seg.long(), dim=1))
+            loss_seg_iter += loss_seg
+            loss_edge = MSE_criterion(output[4]/60000.0, x_edge.float()/60000.0)
+            loss_edge_iter += loss_edge
+            loss_label = label_criterion(output[5], torch.squeeze(x_label.long()))
 
-            # loss_label_iter += loss_label
+            loss_label_iter += loss_label
             loss_reg = Grad_criterion(output[1], y)
             loss_reg_iter += loss_reg
             cord = torch.stack(torch.meshgrid(torch.linspace(-64, 64, 128) / 64, torch.linspace(-64, 64, 128) / 64,
                                               torch.linspace(-64, 64, 128) / 64))[None,...].cuda()
             loss_ble = MSE_criterion(output[1], cord)
-            loss =  + 0.001 * loss_reg + 0.2*loss_disp_seg + 100*loss_sim
-            # loss = loss_sim + loss_reg + 0.2 * loss_disp_seg + 0.2 * loss_cons + 0.2 * loss_edge + \
-            #        0.1 * loss_label + 0.1 * loss_seg + 100*loss_ble
+            # loss =  + 0.001 * loss_reg + 0.2*loss_disp_seg + 100*loss_sim
+            loss = loss_sim + loss_reg + 0.2 * loss_disp_seg + 0.2 * loss_cons + 0.2 * loss_edge + \
+                   0.1 * loss_label + 0.1 * loss_seg + 100*loss_ble
             # loss = awl([500*loss_disp, loss_edge], [loss_seg, loss_label]) + 0.01*loss_disp_seg + 0.01*loss_cons + 0.00001*loss_reg
 
             # compute gradient and do SGD step
@@ -284,27 +272,27 @@ def main():
             output = model((y, x))
             loss_sim = MIND_criterion(output[0], y)
             loss_sim_iter += loss_sim
-            # loss_disp = MSE_criterion(output[1], disp_trans.float())
-            # loss_disp_iter += loss_disp
+            loss_disp = MSE_criterion(output[1], disp_trans.float())
+            loss_disp_iter += loss_disp
             loss_disp_seg = CE_criterion(
                 reg_model_bilin(F.one_hot(y_seg.long(), 13).float().squeeze(dim=1).permute(0, 4, 1, 2, 3), output[1]),
                 torch.squeeze(x_seg.long(), dim=1))
             loss_disp_seg_iter += loss_disp_seg
-            # loss_cons = Dice_criterion(reg_model_bilin(output[3], output[1]),
-            #                            torch.squeeze(x_seg.long(), dim=1))
-            # loss_cons_iter += loss_cons
-            # loss_seg = CE_criterion(output[3], torch.squeeze(y_seg.long(), dim=1))
-            # loss_seg_iter += loss_seg
+            loss_cons = Dice_criterion(reg_model_bilin(output[3], output[1]),
+                                       torch.squeeze(x_seg.long(), dim=1))
+            loss_cons_iter += loss_cons
+            loss_seg = CE_criterion(output[3], torch.squeeze(y_seg.long(), dim=1))
+            loss_seg_iter += loss_seg
             loss_reg = Grad_criterion(output[1], x)
             loss_reg_iter += loss_reg
-            # loss_edge = MSE_criterion(output[4] / 60000.0, y_edge.float() / 60000.0)
-            # loss_edge_iter += loss_edge
-            # loss_label = label_criterion(output[5], torch.squeeze(y_label.long()))
-            # loss_label_iter += loss_label
-            # loss_ble = MSE_criterion(output[1], cord)
-            # loss = loss_sim + loss_reg + 0.2 * loss_disp_seg + 0.2 * loss_cons + 0.2 * loss_edge + \
-            #        0.1 * loss_label + 0.1 * loss_seg + 100 * loss_ble
-            loss = 0.001 * loss_reg + 0.2 * loss_disp_seg + 100*loss_sim
+            loss_edge = MSE_criterion(output[4] / 60000.0, y_edge.float() / 60000.0)
+            loss_edge_iter += loss_edge
+            loss_label = label_criterion(output[5], torch.squeeze(y_label.long()))
+            loss_label_iter += loss_label
+            loss_ble = MSE_criterion(output[1], cord)
+            loss = loss_sim + loss_reg + 0.2 * loss_disp_seg + 0.2 * loss_cons + 0.2 * loss_edge + \
+                   0.1 * loss_label + 0.1 * loss_seg + 100 * loss_ble
+            # loss = 0.001 * loss_reg + 0.2 * loss_disp_seg + 100*loss_sim
             # loss = awl([500*loss_disp, loss_edge], [loss_seg, loss_label]) + 0.01*loss_disp_seg + 0.01*loss_cons + 0.00001*loss_reg
             # compute gradient and do SGD step
             optimizer.zero_grad()

@@ -1,8 +1,3 @@
-'''
-Junyu Chen
-Johns Hopkins Unversity
-jchen245@jhmi.edu
-'''
 
 import ml_collections
 '''
@@ -36,7 +31,7 @@ image_sigma (float): Weight for MSE in the loss
 prior_lambda (float): Weight for sigma terms in the loss
 prior_lambda_mean (float): Weight for precision terms in the loss
 '''
-def get_TransMorphDiff_config():
+def get_iAnatomist_config():
     '''
     TransMorph-diff
     '''
@@ -48,7 +43,6 @@ def get_TransMorphDiff_config():
     config.embed_dim = 96
     config.depths = (2, 2, 4, 2)
     config.num_heads = (4, 4, 8, 8)
-    # config.window_size = (5, 6, 7)
     config.window_size = (5, 6, 7)
     config.mlp_ratio = 4
     config.pat_merg_rf = 4

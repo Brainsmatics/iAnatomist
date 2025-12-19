@@ -26,7 +26,7 @@ from torch import Tensor
 from functools import partial
 import models.finite_differences as fdt
 import models.TransMorph as TM
-import models.configs_TransMorph_diff as configs
+import models.configs_iAnatomist as configs
 
 dim = 3
 reproduce_paper_result = False
@@ -751,7 +751,7 @@ class TransMorphDiff(nn.Module):
                     m.bias.data.zero_()
 
 
-class TransMorphDiff_MutiTask(nn.Module):
+class iAnatomist(nn.Module):
     """
     Probabilistic TransMorph Model
     :return: Warped image, Deformation field, Displacement field
@@ -1448,5 +1448,5 @@ class TransMorphDiff_Semi(nn.Module):
 
 
 CONFIGS = {
-    'TransMorphDiff': configs.get_TransMorphDiff_config(),
+    'iAnatomist': configs.get_iAnatomist_config(),
 }

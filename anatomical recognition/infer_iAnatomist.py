@@ -12,8 +12,8 @@ from skimage import transform
 import matplotlib.pyplot as plt
 from multiprocessing import Pool
 from natsort import natsorted
-from models.TransMorph_diff import TransMorphDiff_MutiTask, Bilinear
-from models.TransMorph_diff import CONFIGS as CONFIGS_TM
+from models.iAnatomist import iAnatomist, Bilinear
+from models.iAnatomist import CONFIGS as CONFIGS_TM
 
 def warp(path, flow, i):
     print(time.time())
@@ -34,10 +34,10 @@ def warp(path, flow, i):
 def main():
     print(time.time())
     model_idx = -1
-    model_folder = 'new_TransMorphDiff+nodisp/'
+    model_folder = 'iAnatomist/'
     model_dir = 'experiments/' + model_folder
 
-    config = CONFIGS_TM['TransMorphDiff']
+    config = CONFIGS_TM['iAnatomist']
     model = TransMorphDiff_MutiTask(config)
     best_model = torch.load(model_dir + natsorted(os.listdir(model_dir))[model_idx])['state_dict']
     print('Best model: {}'.format(natsorted(os.listdir(model_dir))[model_idx]))
@@ -56,7 +56,7 @@ def main():
     test_composed = transforms.Compose([
                                         trans.NumpyType((np.float32, np.int16)),
                                         ])
-    test_set = datasets.JHUBrainInferDataset('./dataset/MRI_test/noMRI', transforms=test_composed)
+    test_set = datasets.fMOSTrainInferDataset('./dataset/test', transforms=test_composed)
     test_loader = DataLoader(test_set, batch_size=1, shuffle=False, num_workers=3, pin_memory=True, drop_last=True)
     eval_dsc_def = utils.AverageMeter()
     eval_dsc_raw = utils.AverageMeter()
@@ -80,8 +80,7 @@ def main():
 
             sitk.WriteImage(sitk.GetImageFromArray(
                 def_out.detach().cpu().numpy()[0, 0, :, :, :]), path[0].replace('image', 'mask_warp'))
-            # sitk.WriteImage(sitk.GetImageFromArray(
-            #     x_def.detach().cpu().numpy()[0, 0, :, :, :]), path[0].replace('image', 'image_warp'))
+
 
             # save warped image with high resolution
             # with Pool(3) as pool:  # 创建包含 4 个进程的进程池
@@ -101,56 +100,7 @@ def main():
             sitk.WriteImage(sitk.GetImageFromArray(
                 def_out_seg.cpu().numpy()[0, 0, :, :, :]), path[0].replace('image', 'mask_warp_high'))
 
-            # 10um 结果
-            # x_high = sitk.GetArrayFromImage(sitk.ReadImage(path[0].replace('image', 'image_high10')))
-            # # flow_high = transform.resize(flow.detach().cpu().numpy()[0, :, :, :, :].transpose(1, 2, 3, 0),
-            # #                              output_shape=x_high.shape, order=1, anti_aliasing=True, preserve_range=True)
-            # flow_high_x = transform.resize(flow.detach().cpu().numpy()[0, 0, :, :, :],
-            #                              output_shape=x_high.shape, order=1, anti_aliasing=True, preserve_range=True)
-            # flow_high_y = transform.resize(flow.detach().cpu().numpy()[0, 1, :, :, :],
-            #                                output_shape=x_high.shape, order=1, anti_aliasing=True, preserve_range=True)
-            # flow_high_z = transform.resize(flow.detach().cpu().numpy()[0, 2, :, :, :],
-            #                                output_shape=x_high.shape, order=1, anti_aliasing=True, preserve_range=True)
-            # flow_high = np.stack([flow_high_x, flow_high_y, flow_high_z], axis=3)
-            # def_out = reg_model_high(torch.from_numpy(x_high[None, None, ...]).float(),
-            #                          torch.from_numpy(flow_high.transpose(3, 0, 1, 2)[None, ...]))
-            # sitk.WriteImage(sitk.GetImageFromArray(
-            #     def_out.cpu().numpy()[0, 0, :, :, :]), path[0].replace('image', 'image_warp_high10'))
 
-            # tar = y.detach().cpu().numpy()[0, 0, :, :, :]
-            # jac_det = utils.jacobian_determinant_vxm(disp_field.detach().cpu().numpy()[0, :, :, :, :])
-            # # line = utils.dice_val_substruct(def_out.long(), y_seg.long(), stdy_idx)
-            # # line = line #+','+str(np.sum(jac_det <= 0)/np.prod(tar.shape))
-            # # csv_writter(line, 'experiments/' + model_folder[:-1])
-            # eval_det.update(np.sum(jac_det <= 0) / np.prod(tar.shape), x.size(0))
-            # print('det < 0: {}'.format(np.sum(jac_det <= 0) / np.prod(tar.shape)))
-
-            # dsc_trans = utils.dice_val(def_out.long(), y_seg.long(), 46)
-            # dsc_raw = utils.dice_val(x_seg.long(), y_seg.long(), 46)
-            # print('Trans dsc: {:.4f}, Raw dsc: {:.4f}'.format(dsc_trans.item(),dsc_raw.item()))
-            # eval_dsc_def.update(dsc_trans.item(), x.size(0))
-            # eval_dsc_raw.update(dsc_raw.item(), x.size(0))
-            # stdy_idx += 1
-
-            # # flip moving and fixed images
-            # x_def, flow, disp_field = model((y, x))
-            # def_out = reg_model_nn(y_seg.cuda().float(), flow.cuda())
-            # tar = x.detach().cpu().numpy()[0, 0, :, :, :]
-            #
-            # jac_det = utils.jacobian_determinant_vxm(disp_field.detach().cpu().numpy()[0, :, :, :, :])
-            # line = utils.dice_val_substruct(def_out.long(), x_seg.long(), stdy_idx)
-            # line = line #+ ',' + str(np.sum(jac_det < 0) / np.prod(tar.shape))
-            # out = def_out.detach().cpu().numpy()[0, 0, :, :, :]
-            # print('det < 0: {}'.format(np.sum(jac_det <= 0)/np.prod(tar.shape)))
-            # csv_writter(line, 'experiments/' + model_folder[:-1])
-            # eval_det.update(np.sum(jac_det <= 0) / np.prod(tar.shape), x.size(0))
-            #
-            # dsc_trans = utils.dice_val(def_out.long(), x_seg.long(), 46)
-            # dsc_raw = utils.dice_val(y_seg.long(), x_seg.long(), 46)
-            # print('Trans dsc: {:.4f}, Raw dsc: {:.4f}'.format(dsc_trans.item(), dsc_raw.item()))
-            # eval_dsc_def.update(dsc_trans.item(), x.size(0))
-            # eval_dsc_raw.update(dsc_raw.item(), x.size(0))
-            # stdy_idx += 1
 
         print('Deformed DSC: {:.3f} +- {:.3f}, Affine DSC: {:.3f} +- {:.3f}'.format(eval_dsc_def.avg,
                                                                                     eval_dsc_def.std,
